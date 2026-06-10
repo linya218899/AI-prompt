@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Prompt 智能寶庫</title>
+    <title>LINYA 的 Prompt</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons for premium modern look -->
@@ -27,7 +27,7 @@
         }
     </style>
 </head>
-<body class="bg-[#f8fafc] text-slate-800 font-sans min-h-screen selection:bg-blue-100 selection:text-blue-800">
+<body class="bg-[#f0f9ff] text-slate-800 font-sans min-h-screen selection:bg-blue-100 selection:text-blue-800">
 
     <!-- 頂部通知 Banner (在 Sheet 載入狀態時顯示) -->
     <div id="statusBanner" class="fixed top-0 left-0 right-0 z-50 transform -translate-y-full transition-transform duration-500 ease-out">
@@ -59,7 +59,7 @@
         <header class="text-center mb-8 md:mb-12">
             <div class="inline-flex items-center gap-3 mb-3">
                 <span class="text-3xl md:text-4xl">🚀</span>
-                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">AI Prompt 智能寶庫</h1>
+                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">LINYA 的 Prompt</h1>
             </div>
             <div>
                 <a id="sheetLink" href="https://docs.google.com/spreadsheets/d/1SGD8uH-vntUS5laAVH2clIOrNx5PtfRkPeMMnoPtBFg/edit?usp=sharing" target="_blank" 
@@ -95,10 +95,10 @@
         </div>
 
         <!-- 區塊標題 -->
-        <div class="border-b border-slate-200 pb-4 mb-8">
+        <div class="border-b border-slate-200/60 pb-4 mb-8">
             <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <span>🧠</span> AI 協思
-                <span id="cardCount" class="text-xs bg-slate-100 text-slate-500 py-1 px-2.5 rounded-full font-semibold border border-slate-200/50">Loading...</span>
+                <span id="cardCount" class="text-xs bg-white text-slate-500 py-1 px-2.5 rounded-full font-semibold border border-slate-200/50 shadow-sm">Loading...</span>
             </h2>
         </div>
 
@@ -143,9 +143,9 @@
     </div>
 
     <!-- 頁尾宣告 -->
-    <footer class="mt-20 border-t border-slate-200 bg-white py-8">
+    <footer class="mt-20 border-t border-slate-200/50 bg-white py-8">
         <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
-            <p>© 2026 AI Prompt 智能寶庫 · 與 Google Sheet 雲端協同運作</p>
+            <p>© 2026 LINYA 的 Prompt · 與 Google Sheet 雲端協同運作</p>
             <p class="mt-1">由 達文西 精心為 琳雅 優化打造</p>
         </div>
     </footer>
@@ -274,7 +274,6 @@
                             const cells = row.c || [];
                             const getCellValue = (cell) => {
                                 if (!cell) return '';
-                                // Google Sheets visualization API returns values with formatted and raw values
                                 return cell.v !== null ? String(cell.v) : '';
                             };
                             return {
@@ -485,7 +484,7 @@
                         lucide.createIcons();
                     }, 2000);
                 })
-                .error((err) => {
+                .catch((err) => {
                     console.error("無法複製:", err);
                 });
         }
