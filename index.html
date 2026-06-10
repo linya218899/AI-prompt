@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt 智能寶庫</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons for premium modern look -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 自定義滾動條樣式，提升精緻感 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-[#f8fafc] text-slate-800 font-sans min-h-screen selection:bg-blue-100 selection:text-blue-800">
+
+    <!-- 頂部通知 Banner (在 Sheet 載入狀態時顯示) -->
+    <div id="statusBanner" class="fixed top-0 left-0 right-0 z-50 transform -translate-y-full transition-transform duration-500 ease-out">
+        <div class="bg-blue-600 text-white px-4 py-2.5 shadow-md flex items-center justify-between text-sm">
+            <div class="flex items-center gap-2 mx-auto">
+                <i data-lucide="loader" class="w-4 h-4 animate-spin" id="bannerIcon"></i>
+                <span id="bannerMessage">正在與雲端 Google Sheet 同步最新 Prompt 資料...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 精美複製成功的 Toast 提示 -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 ease-out">
+        <div class="bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 border border-slate-800">
+            <div class="bg-emerald-500 p-1.5 rounded-lg text-white">
+                <i data-lucide="check" class="w-4 h-4"></i>
+            </div>
+            <div>
+                <p class="font-medium text-sm text-slate-100">複製成功！</p>
+                <p class="text-xs text-slate-400">已將 Prompt 複製至剪貼簿</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主容器 -->
+    <div class="max-w-7xl mx-auto px-4 py-8 md:py-12">
+        
+        <!-- 頂部標題與連結 -->
+        <header class="text-center mb-8 md:mb-12">
+            <div class="inline-flex items-center gap-3 mb-3">
+                <span class="text-3xl md:text-4xl">🚀</span>
+                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">AI Prompt 智能寶庫</h1>
+            </div>
+            <div>
+                <a id="sheetLink" href="https://docs.google.com/spreadsheets/d/1SGD8uH-vntUS5laAVH2clIOrNx5PtfRkPeMMnoPtBFg/edit?usp=sharing" target="_blank" 
+                   class="inline-flex items-center gap-1.5 text-xs md:text-sm text-slate-500 hover:text-blue-600 transition-colors bg-white px-3 py-1.5 rounded-full border border-slate-200/60 shadow-sm hover:shadow-md">
+                    <span>📁 開啟原始資料 Google Sheet</span>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                </a>
+            </div>
+        </header>
+
+        <!-- 搜尋列與篩選按鈕區 -->
+        <div class="max-w-3xl mx-auto mb-10 space-y-6">
+            <!-- 搜尋框 -->
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                <input type="text" id="searchInput" placeholder="搜尋提示詞..." 
+                       class="block w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-700 placeholder-slate-400 transition-all text-sm md:text-base">
+            </div>
+
+            <!-- 分類標籤 Pills (動態生成) -->
+            <div class="flex flex-wrap gap-2 justify-center" id="categoryContainer">
+                <!-- 預設全部按鈕 -->
+                <button onclick="filterCategory('全部')" id="btn-all" class="category-btn px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 border bg-blue-600 border-blue-600 text-white shadow-sm">
+                    全部
+                </button>
+                <!-- 骨架屏載入中樣式 -->
+                <div class="w-20 h-8 bg-slate-200 animate-pulse rounded-full skeleton-loader"></div>
+                <div class="w-24 h-8 bg-slate-200 animate-pulse rounded-full skeleton-loader"></div>
+                <div class="w-16 h-8 bg-slate-200 animate-pulse rounded-full skeleton-loader"></div>
+            </div>
+        </div>
+
+        <!-- 區塊標題 -->
+        <div class="border-b border-slate-200 pb-4 mb-8">
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <span>🧠</span> AI 協思
+                <span id="cardCount" class="text-xs bg-slate-100 text-slate-500 py-1 px-2.5 rounded-full font-semibold border border-slate-200/50">Loading...</span>
+            </h2>
+        </div>
+
+        <!-- 卡片網格 Grid -->
+        <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <!-- 卡片骨架屏 (Loading Skeletons) -->
+            <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 skeleton-loader">
+                <div class="h-6 w-1/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-8 w-2/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-32 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="h-10 bg-slate-200 rounded-lg animate-pulse"></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 skeleton-loader">
+                <div class="h-6 w-1/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-8 w-2/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-32 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="h-10 bg-slate-200 rounded-lg animate-pulse"></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 skeleton-loader">
+                <div class="h-6 w-1/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-8 w-2/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-32 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="h-10 bg-slate-200 rounded-lg animate-pulse"></div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4 skeleton-loader">
+                <div class="h-6 w-1/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-8 w-2/3 bg-slate-200 rounded-md animate-pulse"></div>
+                <div class="h-32 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="h-10 bg-slate-200 rounded-lg animate-pulse"></div>
+            </div>
+        </div>
+
+        <!-- 查無資料提示 -->
+        <div id="noResults" class="hidden text-center py-20">
+            <div class="text-slate-300 mb-3">
+                <i data-lucide="folder-search" class="w-16 h-16 mx-auto"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-700">找不到相符的提示詞</h3>
+            <p class="text-sm text-slate-400 mt-1">請試試看其他關鍵字或分類標籤。</p>
+        </div>
+
+    </div>
+
+    <!-- 頁尾宣告 -->
+    <footer class="mt-20 border-t border-slate-200 bg-white py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400">
+            <p>© 2026 AI Prompt 智能寶庫 · 與 Google Sheet 雲端協同運作</p>
+            <p class="mt-1">由 達文西 精心為 琳雅 優化打造</p>
+        </div>
+    </footer>
+
+    <!-- 核心運作邏輯 JavaScript -->
+    <script>
+        // ==========================================
+        // 1. 內建高備用高質感資料 (Fallback Mock Data)
+        // ==========================================
+        const fallbackPromptData = [
+            {
+                category: "內容創作",
+                title: "意義單詞",
+                prompt: "將文章的重點部分，尋找一個代表性英文文字母，並使這些字母的首字組合成一個具有意義的單詞（如「VISION」）。"
+            },
+            {
+                category: "內容創作",
+                title: "品牌名稱",
+                prompt: "完成 ChatGPT 角色定義後，依據「品牌定義」與「產品介紹」發想5個產品名稱與標語（口號）。\n\n- 提示詞指令：描述品牌與產品，請列出數字個產品名稱與行銷標題建議。(*「品牌定義」描述、「產品介紹」描述)\n- Prompt: 我推出一個運動鞋品牌，今年會銷售一款新型跑步鞋..."
+            },
+            {
+                category: "筆記精煉",
+                title: "長篇文章",
+                prompt: "為這篇長篇文章，進行以下四個步驟，每一個步驟都要提供給文章與標示出來：\n\n第1、請為這篇長文件生成一份簡短摘要。\n第2、請基於上一個摘要，不要遺漏任何專有名詞、數字或關鍵人物，重新生成一份摘要。\n第3、現在，請將摘要中每一句話都濃縮成更簡潔的表達，同時保留完整資訊。"
+            },
+            {
+                category: "筆記精煉",
+                title: "書籍精煉",
+                prompt: "請對 @[書名] 啟動【終極精煉管線】，一次執行四步驟整合：\n\n第一步：全域架構導航 (Stage 01)\n執行 stage-1-navigator，對精煉稿進行深度掃描，產出知識地圖與反直覺預警。\n存檔：01_Map_[主題簡稱].md。\n\n第二步：價值 DNA 診斷 (Stage 02)..."
+            },
+            {
+                category: "筆記精煉",
+                title: "提取練習",
+                prompt: "我剛讀完了關於 [填入具體段落標題] 的內容。現在請幫我進行深度研磨：\n\n1-底層邏輯拷問：針對這段內容的「運作原理」向我提問，測試我是否理解了「為什麼有效」，而非只是記住步驟。\n\n2-強韌優化：如果這段概念有複雜之處..."
+            },
+            {
+                category: "內容創作",
+                title: "影片清理",
+                prompt: "你的角色是一位「逐字稿校對員」，不是編輯。\n\n任務：\n1-僅刪除口語填充詞、重複說法、明顯冗詞\n2-不得改寫句型、不得改變原意、不得加入新解釋\n\n規則：\n1-原句順序必須完全一致\n2-若刪除任何詞語，需確保前後句意連貫"
+            },
+            {
+                category: "內容創作",
+                title: "影片清理（二）",
+                prompt: "你的角色是一位「內容結構化整理員」，不是編輯、不是評論者。\n\n我會提供一段約 4000 字的影片文字內容，請你在完全保留原作者語意與立場的前提下，進行「保留語意的濃縮」，將內容壓縮至約 2000 字。全文用繁體中文呈現。"
+            },
+            {
+                category: "程式應用",
+                title: "程式碼優化",
+                prompt: "請評估以下程式碼並提出效能優化建議。找出多餘的迴圈或冗餘計算，並重構出一個更乾淨、運行更快速且易讀的全新版本，並詳細解釋你的優化思維。"
+            }
+        ];
+
+        // 系統全域變數
+        let allPrompts = [];
+        let currentCategory = '全部';
+        let searchQuery = '';
+
+        // Google Sheet 串接參數 (提取自琳雅提供的網址)
+        const spreadsheetId = '1SGD8uH-vntUS5laAVH2clIOrNx5PtfRkPeMMnoPtBFg';
+        const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json`;
+
+        // ==========================================
+        // 2. 初始化與 API 數據同步 (與防震盪錯誤處理)
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', async () => {
+            lucide.createIcons();
+            showStatus('syncing', '正在與雲端 Google Sheet 同步最新 Prompt 資料...');
+            
+            try {
+                const sheetData = await fetchGoogleSheetDataWithRetry(gvizUrl);
+                if (sheetData && sheetData.length > 0) {
+                    allPrompts = sheetData;
+                    showStatus('success', '已從 Google Sheet 成功同步最新資料！');
+                } else {
+                    throw new Error("數據解析結果為空");
+                }
+            } catch (error) {
+                console.warn("Google Sheet 連線或解析失敗，已自動啟用本機高備用資料庫:", error);
+                allPrompts = fallbackPromptData;
+                showStatus('warning', '無法讀取 Google Sheet，已加載預設高質感資料庫範本');
+            }
+
+            // 初始化分類選單與卡片渲染
+            generateCategoryPills();
+            renderCards();
+
+            // 註冊搜尋框事件監聽
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchQuery = e.target.value.toLowerCase().trim();
+                renderCards();
+            });
+        });
+
+        // ==========================================
+        // 3. 雲端資料抓取及智慧欄位對應解析器 (Robust Parser)
+        // ==========================================
+        async function fetchGoogleSheetDataWithRetry(url, retries = 3, delay = 1000) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP 錯誤: ${response.status}`);
+                    
+                    const text = await response.text();
+                    // 擷取 JSON 正規化字串
+                    const start = text.indexOf('{');
+                    const end = text.lastIndexOf('}') + 1;
+                    if (start === -1 || end === -1) throw new Error("無效的 JSONP 格式");
+                    
+                    const jsonStr = text.substring(start, end);
+                    const data = JSON.parse(jsonStr);
+                    
+                    if (data.status === 'ok' && data.table) {
+                        const cols = data.table.cols.map(col => (col.label || '').trim());
+                        
+                        // 智能判斷各欄位索引（即使順序改變也能正常對應）
+                        let categoryIdx = cols.findIndex(l => l.includes('分類') || l.includes('類別') || l.includes('Category') || l.includes('Type'));
+                        let titleIdx = cols.findIndex(l => l.includes('標題') || l.includes('名稱') || l.includes('Title') || l.includes('Name'));
+                        let promptIdx = cols.findIndex(l => l.includes('提示詞') || l.includes('內容') || l.includes('Prompt') || l.includes('Content'));
+                        
+                        // 若無符合對應，則強制按預設順序進行兜底
+                        if (categoryIdx === -1) categoryIdx = 0;
+                        if (titleIdx === -1) titleIdx = 1;
+                        if (promptIdx === -1) promptIdx = 2;
+
+                        return data.table.rows.map(row => {
+                            const cells = row.c || [];
+                            const getCellValue = (cell) => {
+                                if (!cell) return '';
+                                // Google Sheets visualization API returns values with formatted and raw values
+                                return cell.v !== null ? String(cell.v) : '';
+                            };
+                            return {
+                                category: getCellValue(cells[categoryIdx]).trim(),
+                                title: getCellValue(cells[titleIdx]).trim(),
+                                prompt: getCellValue(cells[promptIdx]).trim()
+                            };
+                        }).filter(item => item.title || item.prompt); // 過濾掉完全空白的列
+                    }
+                    throw new Error("試算表數據結構異常");
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i))); // 指數型延遲重試
+                }
+            }
+        }
+
+        // ==========================================
+        // 4. 動態產生分類 Pill 標籤
+        // ==========================================
+        function generateCategoryPills() {
+            const container = document.getElementById('categoryContainer');
+            // 清理骨架屏
+            const skeletons = container.querySelectorAll('.skeleton-loader');
+            skeletons.forEach(s => s.remove());
+
+            // 取得不重複的分類
+            const categories = ['全部', ...new Set(allPrompts.map(item => item.category).filter(Boolean))];
+            
+            // 重新清空容器
+            container.innerHTML = '';
+            
+            categories.forEach(cat => {
+                const isActive = cat === currentCategory;
+                const btn = document.createElement('button');
+                btn.onclick = () => filterCategory(cat);
+                btn.id = `btn-${cat}`;
+                btn.className = `category-btn px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 border ${
+                    isActive 
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-sm' 
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`;
+                btn.textContent = cat;
+                container.appendChild(btn);
+            });
+        }
+
+        // ==========================================
+        // 5. 分類切換控制
+        // ==========================================
+        function filterCategory(category) {
+            currentCategory = category;
+            
+            // 更新按鈕外觀
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.className = 'category-btn px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 border bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50';
+            });
+            const activeBtn = document.getElementById(`btn-${category}`);
+            if (activeBtn) {
+                activeBtn.className = 'category-btn px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 border bg-blue-600 border-blue-600 text-white shadow-sm';
+            }
+
+            renderCards();
+        }
+
+        // ==========================================
+        // 6. 動態渲染卡片清單 (含搜尋與分類過濾)
+        // ==========================================
+        function renderCards() {
+            const grid = document.getElementById('cardsGrid');
+            const cardCount = document.getElementById('cardCount');
+            const noResults = document.getElementById('noResults');
+            
+            // 清理任何骨架屏
+            grid.innerHTML = '';
+
+            // 進行複合過濾
+            const filtered = allPrompts.filter(item => {
+                const matchCategory = currentCategory === '全部' || item.category === currentCategory;
+                const matchSearch = item.title.toLowerCase().includes(searchQuery) || 
+                                    item.category.toLowerCase().includes(searchQuery) || 
+                                    item.prompt.toLowerCase().includes(searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            // 更新計數
+            cardCount.textContent = `${filtered.length} 筆項目`;
+
+            if (filtered.length === 0) {
+                grid.classList.add('hidden');
+                noResults.classList.remove('hidden');
+                return;
+            }
+
+            grid.classList.remove('hidden');
+            noResults.classList.add('hidden');
+
+            filtered.forEach((item, index) => {
+                // 決定卡片頂部的裝飾顏色 (基於分類)
+                let colorClass = 'from-violet-500 to-indigo-500'; // 預設
+                let badgeClass = 'bg-violet-50 text-violet-700 border border-violet-100';
+
+                if (item.category === '內容創作') {
+                    colorClass = 'from-sky-500 to-blue-500';
+                    badgeClass = 'bg-sky-50 text-sky-700 border border-sky-100';
+                } else if (item.category === '筆記精煉') {
+                    colorClass = 'from-fuchsia-500 to-purple-500';
+                    badgeClass = 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100';
+                } else if (item.category === '程式應用' || item.category === '程式生成') {
+                    colorClass = 'from-emerald-500 to-teal-500';
+                    badgeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
+                } else if (item.category === '簡報表達') {
+                    colorClass = 'from-amber-500 to-orange-500';
+                    badgeClass = 'bg-amber-50 text-orange-700 border border-amber-100';
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden group";
+                
+                card.innerHTML = `
+                    <!-- 卡片頂部漸層條 -->
+                    <div class="h-1.5 w-full bg-gradient-to-r ${colorClass}"></div>
+                    
+                    <div class="p-5 flex-1 flex flex-col">
+                        <!-- 卡片頂端分類 -->
+                        <div class="mb-3">
+                            <span class="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold ${badgeClass}">
+                                ${item.category || '未分類'}
+                            </span>
+                        </div>
+                        
+                        <!-- 標題 -->
+                        <h3 class="text-base font-bold text-slate-800 mb-3 group-hover:text-blue-600 transition-colors">
+                            ${item.title || '無標題'}
+                        </h3>
+                        
+                        <!-- 提示詞文字方塊 (可滾動) -->
+                        <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-xs text-slate-600 flex-1 min-h-[140px] max-h-[160px] overflow-y-auto mb-4 whitespace-pre-wrap custom-scrollbar select-all leading-relaxed relative">
+                            ${escapeHTML(item.prompt)}
+                        </div>
+                        
+                        <!-- 複製按鈕 -->
+                        <button onclick="handleCopy(this, ${index})" 
+                                class="copy-btn w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                            <span>複製 Prompt</span>
+                        </button>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+
+            // 重新初始化卡片中的 Lucide 圖示
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 7. 高品質防出錯 HTML 轉義字元
+        // ==========================================
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // ==========================================
+        // 8. 兼容 iframe 的一鍵複製剪貼簿控制
+        // ==========================================
+        function handleCopy(button, index) {
+            // 從過濾後的數據中找到真實要複製的文字
+            const filtered = allPrompts.filter(item => {
+                const matchCategory = currentCategory === '全部' || item.category === currentCategory;
+                const matchSearch = item.title.toLowerCase().includes(searchQuery) || 
+                                    item.category.toLowerCase().includes(searchQuery) || 
+                                    item.prompt.toLowerCase().includes(searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            if (!filtered[index]) return;
+            const promptText = filtered[index].prompt;
+
+            // 執行複製
+            copyTextToClipboard(promptText)
+                .then(() => {
+                    // 按鈕狀態反饋
+                    const originalHTML = button.innerHTML;
+                    button.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                    button.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+                    button.innerHTML = `
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i>
+                        <span>已複製 ✔</span>
+                    `;
+                    lucide.createIcons();
+
+                    // 觸發自定義 Toast
+                    showToast();
+
+                    // 2 秒後還原
+                    setTimeout(() => {
+                        button.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                        button.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        button.innerHTML = originalHTML;
+                        lucide.createIcons();
+                    }, 2000);
+                })
+                .error((err) => {
+                    console.error("無法複製:", err);
+                });
+        }
+
+        // 相容 iframe 沙盒限制的剪貼簿寫入機制
+        function copyTextToClipboard(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            } else {
+                // 用傳統模式作為 iframe 與舊瀏覽器的完美退路
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed"; 
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    return Promise.resolve();
+                } catch (err) {
+                    document.body.removeChild(textArea);
+                    return Promise.reject(err);
+                }
+            }
+        }
+
+        // ==========================================
+        // 9. 狀態 Banner 顯示控制器
+        // ==========================================
+        function showStatus(type, message) {
+            const banner = document.getElementById('statusBanner');
+            const icon = document.getElementById('bannerIcon');
+            const msgSpan = document.getElementById('bannerMessage');
+
+            banner.className = "fixed top-0 left-0 right-0 z-50 transform transition-transform duration-500 ease-out text-white px-4 py-2.5 shadow-md flex items-center justify-between text-sm ";
+            
+            if (type === 'syncing') {
+                banner.classList.add('bg-blue-600');
+                icon.className = "w-4 h-4 animate-spin";
+                icon.setAttribute('data-lucide', 'loader');
+            } else if (type === 'success') {
+                banner.classList.add('bg-emerald-600');
+                icon.className = "w-4 h-4";
+                icon.setAttribute('data-lucide', 'check-circle');
+                // 成功同步後 3 秒自動隱藏 Banner
+                setTimeout(() => {
+                    banner.classList.add('-translate-y-full');
+                }, 3000);
+            } else if (type === 'warning') {
+                banner.classList.add('bg-amber-600');
+                icon.className = "w-4 h-4";
+                icon.setAttribute('data-lucide', 'alert-triangle');
+                // 警告訊息維持 5 秒
+                setTimeout(() => {
+                    banner.classList.add('-translate-y-full');
+                }, 5000);
+            }
+
+            msgSpan.textContent = message;
+            banner.classList.remove('-translate-y-full');
+            lucide.createIcons();
+        }
+
+        // ==========================================
+        // 10. 顯示 Toast 成功提示
+        // ==========================================
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('opacity-0', 'translate-y-10', 'pointer-events-none');
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-10', 'pointer-events-none');
+            }, 2500);
+        }
+    </script>
+</body>
+</html>
